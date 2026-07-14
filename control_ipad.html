@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Live Action Phone — Director">
+<title>Live Action Phone — Director (Example: Luna)</title>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+:root {
+  --bg:#0a0a0c; --surface:#141418; --surface2:#1e1e24; --surface3:#28282f;
+  --amber:#f5a623; --red:#ff453a; --green:#30d158; --blue:#0a84ff;
+  --t1:#fff; --t2:#aeaeb2; --t3:#636366; --div:rgba(255,255,255,.06);
+  /* Cue-category colors — used to color-code cue buttons by what they do */
+  --c-call:#30d158; --c-msg:#0a84ff; --c-media:#e1306c; --c-neutral:#8e8e93;
+  --ok-bg:rgba(48,209,88,.16); --bad-bg:rgba(255,69,58,.18);
+}
+html, body { height:100%; background:var(--bg); font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif; color:var(--t1); font-size:16px; overflow:hidden; }
+
+/* ── TOP BAR ── */
+#top-bar { position:fixed; top:0; left:0; right:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--div); padding:env(safe-area-inset-top, 20px) 20px 0; }
+#top-bar-inner { display:flex; align-items:center; justify-content:space-between; height:56px; }
+.bar-title { font-size:20px; font-weight:700; color:var(--amber); }
+.conn-pill { display:flex; align-items:center; gap:8px; background:var(--surface2); border-radius:20px; padding:9px 16px; font-size:15px; color:var(--t3); font-weight:700; transition:background .3s, color .3s; }
+.conn-pill.ok  { background:var(--ok-bg);  color:var(--green); }
+.conn-pill.bad { background:var(--bad-bg); color:var(--red); }
+.conn-dot { width:9px; height:9px; border-radius:50%; background:var(--t3); transition:background .3s; }
+.conn-dot.live { background:var(--green); }
+
+/* ── PHONE OFFLINE BANNER — glanceable warning when the hero phone drops ── */
+#phone-alert { display:none; position:fixed; top:calc(env(safe-area-inset-top, 20px) + 56px + 62px); left:0; right:0; z-index:95; height:42px; background:var(--bad-bg); color:var(--red); font-size:15px; font-weight:700; text-align:center; padding:10px 16px; border-bottom:1px solid rgba(255,69,58,.35); backdrop-filter:blur(12px); }
+#phone-alert.show { display:block; }
+/* Push the scroll area down while the banner is up so it never covers the tabs */
+body.phone-offline #main { top:calc(env(safe-area-inset-top, 20px) + 56px + 62px + 42px); }
+
+/* ── STORY MODE BAR ── */
+#story-bar { position:fixed; top:calc(env(safe-area-inset-top, 20px) + 56px); left:0; right:0; z-index:90; background:var(--surface); border-bottom:1px solid var(--div); padding:12px 20px 14px; }
+.story-row { display:flex; align-items:center; gap:10px; }
+.story-badge { font-size:12px; font-weight:700; padding:4px 12px; border-radius:6px; letter-spacing:.3px; }
+.story-badge.active { background:rgba(48,209,88,.15); color:var(--green); }
+.story-badge.inactive { background:var(--surface2); color:var(--t3); }
+.story-spacer { flex:1; }
+.story-btn { padding:12px 20px; border-radius:12px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; min-height:44px; }
+.story-btn:active { opacity:.7; }
+.story-btn-enter { background:var(--amber); color:#000; }
+.story-btn-reset { background:var(--surface3); color:var(--amber); }
+.story-btn-exit { background:var(--surface3); color:var(--t2); }
+
+/* ── MAIN SCROLL AREA ── */
+#main { position:fixed; top:calc(env(safe-area-inset-top, 20px) + 56px + 62px); left:0; right:0; bottom:calc(env(safe-area-inset-bottom, 0px) + 44px); overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px 16px 16px; }
+
+/* ── TAB SWITCHER ── */
+.tab-row { display:flex; gap:6px; margin-bottom:16px; position:sticky; top:0; z-index:10; background:var(--bg); padding:4px 0 12px; }
+.tab-btn { flex:1; padding:12px 8px; border-radius:12px; border:1px solid var(--div); background:var(--surface); color:var(--t3); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; text-align:center; min-height:44px; }
+.tab-btn:active { opacity:.7; }
+.tab-btn.active { background:var(--amber); color:#000; border-color:var(--amber); }
+
+/* ── SCENE CARDS ── */
+.scene-card { background:var(--surface); border-radius:16px; padding:16px; margin-bottom:12px; border-left:5px solid var(--surface3); }
+.scene-card.sc-current { border-left-color:var(--amber); background:var(--surface2); }
+.scene-hdr { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.scene-num { font-size:14px; font-weight:800; color:var(--t2); background:var(--surface3); padding:3px 9px; border-radius:6px; }
+.sc-current .scene-num { color:#000; background:var(--amber); }
+.scene-name { font-size:17px; font-weight:700; color:var(--t1); flex:1; }
+.scene-time { font-size:14px; color:var(--t3); font-weight:500; font-variant-numeric:tabular-nums; }
+.scene-cues { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:8px; }
+.scene-note { font-size:13px; color:var(--t3); font-style:italic; padding:6px 0; line-height:1.4; width:100%; }
+
+/* ── CUE BUTTONS ──
+   Color-coded by category via a second class + data-kind sub-label:
+   .cue-call = phone calls, .cue-msg = texts/link cards, .cue-media = IG/X media,
+   default amber = open-app / navigation. onclick handlers are untouched. */
+.cue-btn { padding:10px 14px; border-radius:12px; background:rgba(245,166,35,.1); border:1px solid rgba(245,166,35,.25); color:var(--amber); font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; min-height:56px; min-width:48px; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:3px; text-align:left; }
+.cue-btn:active { background:rgba(245,166,35,.3); transform:scale(0.96); }
+.cue-btn::after { content:attr(data-kind); font-size:10px; font-weight:700; letter-spacing:.5px; opacity:.55; text-transform:uppercase; }
+.cue-btn.cue-call  { background:rgba(48,209,88,.10);  border-color:rgba(48,209,88,.30);  color:var(--c-call); }
+.cue-btn.cue-call:active  { background:rgba(48,209,88,.28); }
+.cue-btn.cue-msg   { background:rgba(10,132,255,.10); border-color:rgba(10,132,255,.30); color:#6db3ff; }
+.cue-btn.cue-msg:active   { background:rgba(10,132,255,.28); }
+.cue-btn.cue-media { background:rgba(225,48,108,.10); border-color:rgba(225,48,108,.32); color:#ff7ab0; }
+.cue-btn.cue-media:active { background:rgba(225,48,108,.28); }
+.reset-btn { background:var(--surface3); border:1px solid var(--div); color:var(--t2); align-items:center; }
+.reset-btn:active { background:rgba(255,255,255,.1); }
+
+/* ── QUICK CONTROLS PANEL ── */
+.controls-panel { display:none; }
+.controls-panel.visible { display:block; }
+.ctrl-section { margin-bottom:16px; }
+.ctrl-label { font-size:11px; font-weight:600; color:var(--t3); text-transform:uppercase; letter-spacing:.6px; margin-bottom:10px; }
+.ctrl-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.ctrl-btn { padding:14px 16px; border-radius:12px; border:1px solid var(--div); background:var(--surface); color:var(--t2); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; min-height:48px; flex:1; min-width:calc(50% - 4px); text-align:center; }
+.ctrl-btn:active { background:var(--surface3); color:var(--t1); transform:scale(0.96); }
+.ctrl-btn-danger { border-color:rgba(255,69,58,.3); color:var(--red); }
+.ctrl-btn-danger:active { background:rgba(255,69,58,.15); }
+.ctrl-btn-danger.armed { background:var(--red); border-color:var(--red); color:#fff; }
+
+/* ── CLOCK ROW ── */
+.clock-row { display:flex; gap:8px; margin-bottom:8px; }
+.clock-inp { flex:1; background:var(--surface2); border:1px solid var(--div); border-radius:12px; padding:14px 16px; color:var(--t1); font-size:16px; font-family:inherit; outline:none; min-height:48px; }
+.clock-inp::placeholder { color:var(--t3); }
+.clock-inp:focus { border-color:rgba(255,255,255,.15); }
+.clock-set-btn { padding:14px 24px; border-radius:12px; border:none; background:var(--blue); color:#fff; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; min-height:48px; }
+.clock-set-btn:active { opacity:.7; }
+
+/* ── CHARACTER CALL BUTTONS ── */
+.char-btn { padding:14px 16px; border-radius:12px; border:1px solid; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; min-height:48px; flex:1; min-width:calc(50% - 4px); text-align:center; }
+.char-btn:active { transform:scale(0.96); opacity:.8; }
+.char-penny { background:rgba(155,89,182,.15); border-color:rgba(155,89,182,.35); color:#9b59b6; }
+.char-debbie { background:rgba(255,107,53,.15); border-color:rgba(255,107,53,.35); color:#ff6b35; }
+.char-holt { background:rgba(58,110,165,.15); border-color:rgba(58,110,165,.35); color:#5a8ec0; }
+.char-end { background:rgba(255,69,58,.15); border-color:rgba(255,69,58,.35); color:var(--red); display:none; }
+
+/* ── NAVIGATE BUTTONS ── */
+.nav-btn { padding:14px 16px; border-radius:12px; border:1px solid var(--div); background:var(--surface2); color:var(--t2); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; min-height:48px; flex:1; text-align:center; }
+.nav-btn:active { background:var(--surface3); color:var(--t1); transform:scale(0.96); }
+
+/* ── TOAST ── */
+#toast { position:fixed; bottom:calc(env(safe-area-inset-bottom, 20px) + 70px); left:50%; transform:translateX(-50%) translateY(80px); background:rgba(30,30,32,.95); backdrop-filter:blur(16px); color:var(--t1); padding:14px 24px; border-radius:14px; font-size:14px; font-weight:500; z-index:999; pointer-events:none; opacity:0; transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s; white-space:nowrap; }
+#toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+/* ── CUE LOG DRAWER — timestamped record of every cue, with delivery status ──
+   Dot states: amber outline = sent (awaiting ack), green = phone confirmed it ran,
+   red = publish failed, gray = no ack after 4s (old phone build, or check connection). */
+#cue-log { position:fixed; left:0; right:0; bottom:0; z-index:200; background:var(--surface); border-top:1px solid var(--div); padding-bottom:env(safe-area-inset-bottom, 0px); }
+#cue-log-hdr { display:flex; align-items:center; gap:10px; height:44px; padding:0 16px; cursor:pointer; }
+.cl-title { font-size:11px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.6px; }
+#cue-log-last { flex:1; font-size:13px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cl-chev { font-size:11px; color:var(--t3); transition:transform .25s; }
+#cue-log.open .cl-chev { transform:rotate(180deg); }
+#cue-log-list { display:none; max-height:240px; overflow-y:auto; -webkit-overflow-scrolling:touch; border-top:1px solid var(--div); padding:6px 0; }
+#cue-log.open #cue-log-list { display:block; }
+.cl-entry { display:flex; align-items:center; gap:10px; padding:7px 16px; font-size:13px; }
+.cl-time { color:var(--t3); font-variant-numeric:tabular-nums; }
+.cl-label { color:var(--t1); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cl-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.cl-dot.st-sent   { background:transparent; border:2px solid var(--amber); }
+.cl-dot.st-acked  { background:var(--green); border:none; }
+.cl-dot.st-failed { background:var(--red); border:none; }
+.cl-dot.st-noack  { background:var(--t3); border:none; }
+
+/* ── MONITOR MODE (?monitor=1) — watch-only station: sees status + cue log, can't fire ── */
+#monitor-badge { display:none; font-size:12px; font-weight:800; letter-spacing:.5px; background:var(--blue); color:#fff; padding:4px 10px; border-radius:6px; }
+body.monitor #monitor-badge { display:inline-block; }
+body.monitor .cue-btn, body.monitor .ctrl-btn, body.monitor .story-btn, body.monitor .char-btn,
+body.monitor .nav-btn, body.monitor .clock-set-btn, body.monitor .clock-inp { pointer-events:none; opacity:.35; }
+
+/* Armed (tap-again-to-confirm) state for story-bar buttons — matches .ctrl-btn-danger.armed */
+.story-btn.armed { background:var(--red); color:#fff; }
+
+/* ── XCODE / PWA ADJUSTMENTS ── */
+body.xcode #top-bar { padding-top:env(safe-area-inset-top, 20px); }
+body.pwa #top-bar { padding-top:env(safe-area-inset-top, 20px); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <div id="top-bar-inner">
+    <div class="bar-title">Director Panel</div>
+    <span id="monitor-badge">MONITOR</span>
+    <div class="conn-pill" id="conn-pill-panel">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">Connecting…</span>
+    </div>
+    <div class="conn-pill" id="conn-pill-phone">
+      <div class="conn-dot" id="phone-dot"></div>
+      <span id="phone-label">Phone: —</span>
+    </div>
+  </div>
+</div>
+
+<!-- STORY MODE BAR -->
+<div id="story-bar">
+  <div class="story-row">
+    <span class="story-badge inactive" id="story-badge">OFF</span>
+    <div class="story-spacer"></div>
+    <button class="story-btn story-btn-enter" id="story-enter-btn" onclick="storyEnter()">Enter Story Mode</button>
+    <button class="story-btn story-btn-reset" id="story-reset-btn" onclick="storyReset()" style="display:none">Reset to 12:06</button>
+    <button class="story-btn story-btn-exit" id="story-exit-btn" onclick="storyExit()" style="display:none">Exit</button>
+  </div>
+</div>
+
+<!-- PHONE OFFLINE BANNER — only shown when this panel is connected but the hero phone isn't -->
+<div id="phone-alert">&#9888; HERO PHONE OFFLINE — cues will not land</div>
+
+<!-- MAIN SCROLL AREA -->
+<div id="main">
+
+  <!-- TAB SWITCHER -->
+  <div class="tab-row">
+    <button class="tab-btn active" id="tbtn-scenes" onclick="switchTab('scenes')">Scenes</button>
+    <button class="tab-btn" id="tbtn-controls" onclick="switchTab('controls')">Controls</button>
+  </div>
+
+  <!-- SCENES PANEL -->
+  <!-- ===== EXAMPLE STORY CONTENT — these scene cards/cues are Kenneth's "Good Luck, Luna" example. Replace with your own film's scenes/cue labels. Safe to edit freely; this is NOT app logic. ===== -->
+  <div id="panel-scenes">
+
+    <!-- Scene 2 -->
+    <div class="scene-card" id="ss-2">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 2</span>
+        <span class="scene-name">Debbie calls Luna</span>
+        <span class="scene-time">12:06 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(2)">Reset</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(0)">Lock Screen</button>
+        <button class="cue-btn cue-call" data-kind="call" onclick="storyCue(1)">Call from Debbie</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCue(2)">NYT Article</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(3)">Back to Call</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCue(4)">Becky Text</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(5)">Back to Call</button>
+      </div>
+    </div>
+
+    <!-- Scene 3 -->
+    <div class="scene-card" id="ss-3">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 3</span>
+        <span class="scene-name">Luna on X / Dad calls</span>
+        <span class="scene-time">12:10 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(3)">Reset</button>
+        <button class="cue-btn" data-kind="app" onclick="storyCue(6)">Open X App</button>
+        <button class="cue-btn cue-call" data-kind="call" onclick="storyCue(7)">Call from Dad</button>
+      </div>
+    </div>
+
+    <!-- Scene 4 -->
+    <div class="scene-card" id="ss-4">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 4</span>
+        <span class="scene-name">Luna talks to Penny</span>
+        <span class="scene-time">12:15 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(4)">Reset</button>
+        <button class="cue-btn cue-call" data-kind="call" onclick="storyCue(8)">Open Phone App</button>
+      </div>
+      <div class="scene-note">Drops the phone into an ongoing/active call with Penny. Actor plays the call live, hangs up, opens Twitter, goes to Holt page, opens DM, sends phone number</div>
+    </div>
+
+    <!-- Scene 5 -->
+    <div class="scene-card" id="ss-5">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 5</span>
+        <span class="scene-name">Luna DMs Richard Holt / Holt calls</span>
+        <span class="scene-time">12:20 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(5)">Reset</button>
+        <button class="cue-btn" data-kind="app" onclick="storyCue(9)">Open Holt Profile</button>
+        <button class="cue-btn" data-kind="app" onclick="storyCue(10)">Open Holt DM</button>
+        <button class="cue-btn cue-media" data-kind="x dm" onclick="storyCue(11)">DM Sent (fallback)</button>
+        <button class="cue-btn cue-media" data-kind="x dm" onclick="storyCue(12)">DM Read Receipt</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(13)">Home Screen</button>
+        <button class="cue-btn cue-call" data-kind="call" onclick="storyCue(14)">Call — 234-546-7965</button>
+      </div>
+      <div class="scene-note">Profile shown is the original (pre-correction) Holt page. Actor types DM and sends.</div>
+    </div>
+
+    <!-- Scene 6 -->
+    <div class="scene-card" id="ss-6">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 6</span>
+        <span class="scene-name">Voice Memos</span>
+        <span class="scene-time">12:31 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(6)">Reset</button>
+        <button class="cue-btn" data-kind="app" onclick="storyCue(15)">Open Voice Memos</button>
+      </div>
+    </div>
+
+    <!-- Scene 7 -->
+    <div class="scene-card" id="ss-7">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 7</span>
+        <span class="scene-name">Adam reads Luna's phone</span>
+        <span class="scene-time">12:38 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(7)">Reset</button>
+        <button class="cue-btn" data-kind="app" onclick="storyCue(16)">Open #LunaLindsey Hashtag (X)</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(17)">Lock Screen</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCue(18)">Debbie: "you called holt"</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCue(19)">Holt Profile Link</button>
+      </div>
+      <div class="scene-note">Actor/Adam taps Holt link card to see updated profile</div>
+    </div>
+
+    <!-- Scene 8 -->
+    <div class="scene-card" id="ss-8">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 8</span>
+        <span class="scene-name">Remy's Instagram Live</span>
+        <span class="scene-time">12:46 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(8)">Reset</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(21)">Home Screen</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCueChain(22, [{idx:23,delay:1800}])">Becky + IG Link</button>
+        <button class="cue-btn cue-media" data-kind="live" onclick="storyCue(24)">Open Instagram</button>
+        <button class="cue-btn cue-media" data-kind="live" onclick="storyCue(25)">Force Go Live</button>
+        <button class="cue-btn cue-media" data-kind="live" onclick="fireIGSpotlight()">Troll Comment</button>
+        <button class="cue-btn cue-media" data-kind="live" onclick="fireIGWild()">Chat Goes Wild</button>
+      </div>
+      <div class="scene-note">Actor taps banner, opens becky thread, taps IG Live link, lobby, joins</div>
+    </div>
+
+    <!-- Scene 9 -->
+    <div class="scene-card" id="ss-9">
+      <div class="scene-hdr">
+        <span class="scene-num">SC 9</span>
+        <span class="scene-name">The Correction / Dad calls</span>
+        <span class="scene-time">12:55 PM</span>
+      </div>
+      <div class="scene-cues">
+        <button class="cue-btn reset-btn" onclick="storyJump(9)">Reset</button>
+        <button class="cue-btn" data-kind="nav" onclick="storyCue(26)">Lock Screen</button>
+        <button class="cue-btn cue-msg" data-kind="text" onclick="storyCueCorrection()">Debbie Correction</button>
+        <button class="cue-btn cue-call" data-kind="call" onclick="storyCue(28)">Call from Dad</button>
+      </div>
+      <div class="scene-note">Correction link card, opens Debbie thread. Actor taps link to article.</div>
+    </div>
+
+  </div>
+
+  <!-- CONTROLS PANEL -->
+  <div id="panel-controls" class="controls-panel">
+
+    <!-- CLOCK -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Clock &amp; Date</div>
+      <div class="clock-row">
+        <input class="clock-inp" id="clock-inp" type="text" placeholder="e.g. 9:41" maxlength="7" inputmode="numeric">
+        <button class="clock-set-btn" onclick="sendSetClock()">Set</button>
+      </div>
+      <div class="clock-row">
+        <input class="clock-inp" id="date-inp" type="date">
+        <button class="clock-set-btn" onclick="sendSetDate()">Set Date</button>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Status Bar</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="sendBattery(100)">&#128267; 100%</button>
+        <button class="ctrl-btn" onclick="sendBattery(50)">50%</button>
+        <button class="ctrl-btn" onclick="sendBattery(20)">20%</button>
+        <button class="ctrl-btn" onclick="sendBattery(5)">5%</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="sendCharging()">&#9889; Charging</button>
+        <button class="ctrl-btn" onclick="sendSignal(1)">Signal: 1 bar</button>
+        <button class="ctrl-btn" onclick="sendSignal(3)">Signal: 3 bars</button>
+        <button class="ctrl-btn" onclick="sendSignal(4)">Signal: 4 bars</button>
+      </div>
+    </div>
+
+    <!-- PHONE CONTROLS -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Phone Controls</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="lockPhone()">🔒 Lock Phone</button>
+        <button class="ctrl-btn" onclick="unlockPhone()">🔓 Unlock Phone</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="navigate('home')">Home Screen</button>
+        <button class="ctrl-btn" onclick="navigate('msgs')">Open Messages</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="navigate('vm')">Voice Memos</button>
+      </div>
+    </div>
+
+    <!-- NAVIGATE TO THREADS -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Open Thread</div>
+      <div class="ctrl-row">
+        <button class="nav-btn" onclick="openThread('debbie')">Debbie</button>
+        <button class="nav-btn" onclick="openThread('adam')">Adam</button>
+        <button class="nav-btn" onclick="openThread('dad')">Dad</button>
+        <button class="nav-btn" onclick="openThread('penny')">Penny</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="nav-btn" onclick="openThread('frank')">Frank</button>
+        <button class="nav-btn" onclick="openThread('nyt')">NYT</button>
+        <button class="nav-btn" onclick="openThread('team')">team</button>
+        <button class="nav-btn" onclick="openThread('becky')">becky</button>
+      </div>
+    </div>
+
+    <!-- X APP -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">X App — Holt DM</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="openXDMPanel()">Open DM</button>
+        <button class="ctrl-btn" onclick="markXDMRead()">Mark Read</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="fireHoltProfileDirect()">Holt Updated Profile</button>
+      </div>
+    </div>
+
+    <!-- INSTAGRAM -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Instagram Live</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="fireIGLive()">IG Live Notification</button>
+        <button class="ctrl-btn" onclick="fireIGOpen()">Open Instagram</button>
+      </div>
+    </div>
+
+    <!-- CHARACTER PHONES -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">Character Phones</div>
+      <div class="ctrl-row">
+        <button class="char-btn char-penny" onclick="fireCharCall('penny')">Penny — Incoming</button>
+        <button class="char-btn char-debbie" onclick="fireCharCall('debbie')">Debbie — Active</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="char-btn char-holt" onclick="fireCharCall('holt')">Holt — Active</button>
+        <button class="char-btn char-end" id="char-btn-end" onclick="fireCharCallEnd()">End Character Call</button>
+      </div>
+    </div>
+
+    <!-- DANGER -->
+    <div class="ctrl-section" style="margin-top:24px">
+      <div class="ctrl-label" style="color:var(--red)">Danger</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn ctrl-btn-danger" id="wipe-btn" onclick="fireWipe()">Wipe Phone</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<!-- CUE LOG DRAWER -->
+<div id="cue-log">
+  <div id="cue-log-hdr" onclick="toggleCueLog()">
+    <span class="cl-title">Cue Log</span>
+    <span class="cl-dot" id="cue-log-last-dot" style="display:none"></span>
+    <span id="cue-log-last">no cues fired yet</span>
+    <span class="cl-chev">&#9650;</span>
+  </div>
+  <div id="cue-log-list"></div>
+</div>
+
+<script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+<script>
+// ── ABLY INIT ──────────────────────────────────────────────────────────────────
+var ABLY_KEY = 'YOUR-ABLY-API-KEY';
+var CHANNEL  = 'live-action-phone';
+// Guarded init — a bad/placeholder key must not kill the rest of the script
+// (matches the defensive pattern in index.html).
+var ably     = null;
+var channel  = null;
+try {
+  ably    = new Ably.Realtime({ key: ABLY_KEY });
+  channel = ably.channels.get(CHANNEL);
+} catch(e) { console.warn('Ably init failed (check ABLY_KEY):', e); }
+var dot      = document.getElementById('conn-dot');
+var lbl      = document.getElementById('conn-label');
+
+var panelConnected = false;
+function _setPanelPill(state, text) {
+  // state: 'ok' | 'bad' | '' (neutral)
+  var pill = document.getElementById('conn-pill-panel');
+  if (pill) { pill.classList.toggle('ok', state === 'ok'); pill.classList.toggle('bad', state === 'bad'); }
+  if (state === 'ok') { dot.classList.add('live'); } else { dot.classList.remove('live'); }
+  lbl.textContent = text;
+}
+if (ably) {
+  ably.connection.on('connected',    function(){ panelConnected = true;  _setPanelPill('ok', 'Live'); _checkPhonePresence(); });
+  ably.connection.on('connecting',   function(){ panelConnected = false; _setPanelPill('', 'Reconnecting…'); _syncPhoneAlert(); });
+  ably.connection.on('disconnected', function(){ panelConnected = false; _setPanelPill('bad', 'Disconnected'); _syncPhoneAlert(); });
+  ably.connection.on('suspended',    function(){ panelConnected = false; _setPanelPill('bad', 'Disconnected'); _setPhoneStatus(false); });
+  ably.connection.on('failed',       function(){ panelConnected = false; _setPanelPill('bad', 'Failed'); _setPhoneStatus(false); });
+} else {
+  _setPanelPill('bad', 'No Ably key');
+}
+
+// ── HERO PHONE PRESENCE ────────────────────────────────────────────────────────
+// The phone enters Ably presence as 'phone-hero'. This tells the director
+// whether the hero phone itself is connected — not just this panel.
+var PHONE_CLIENT_ID = 'phone-hero';
+
+var phoneLive = false;
+function _setPhoneStatus(on) {
+  phoneLive = (on === true);
+  var pd = document.getElementById('phone-dot');
+  var pl = document.getElementById('phone-label');
+  var pill = document.getElementById('conn-pill-phone');
+  if (pd) pd.classList.toggle('live', phoneLive);
+  if (pl) pl.textContent = phoneLive ? 'Phone live' : 'Phone offline';
+  if (pill) { pill.classList.toggle('ok', phoneLive); pill.classList.toggle('bad', !phoneLive); }
+  _syncPhoneAlert();
+}
+
+// The big offline banner only makes sense when the panel itself is connected —
+// otherwise the panel pill already tells the operator the whole link is down.
+function _syncPhoneAlert() {
+  var offline = panelConnected && !phoneLive;
+  var alertEl = document.getElementById('phone-alert');
+  if (alertEl) alertEl.classList.toggle('show', offline);
+  document.body.classList.toggle('phone-offline', offline);
+}
+
+function _checkPhonePresence() {
+  if (!channel) return;
+  channel.presence.get(function(err, members) {
+    if (err) { _setPhoneStatus(false); return; }
+    var found = false;
+    for (var i = 0; i < members.length; i++) {
+      if (members[i].clientId === PHONE_CLIENT_ID) { found = true; break; }
+    }
+    _setPhoneStatus(found);
+  });
+}
+
+if (channel) {
+  channel.presence.subscribe('enter',  function(m){ if (m.clientId === PHONE_CLIENT_ID) _setPhoneStatus(true); });
+  channel.presence.subscribe('update', function(m){ if (m.clientId === PHONE_CLIENT_ID) _setPhoneStatus(true); });
+  channel.presence.subscribe('leave',  function(m){ if (m.clientId === PHONE_CLIENT_ID) _checkPhonePresence(); });
+}
+
+// ── XCODE / PWA DETECTION ──────────────────────────────────────────────────────
+if (window.navigator.standalone) { document.body.classList.add('pwa'); }
+if (window.location.search.indexOf('xcode=1') !== -1) { document.body.classList.add('xcode'); }
+
+// ── MONITOR MODE (?monitor=1) ──────────────────────────────────────────────────
+// Watch-only station: all cue controls disabled, cue log starts expanded so the
+// viewer can follow what the operator stations fire. publish() also refuses to send.
+var MONITOR = window.location.search.indexOf('monitor=1') !== -1;
+if (MONITOR) {
+  document.body.classList.add('monitor');
+  var _clEl = document.getElementById('cue-log');
+  if (_clEl) _clEl.classList.add('open');
+}
+
+// ── CUE LOG ────────────────────────────────────────────────────────────────────
+// Every cue this panel sends gets a _cid (command id). The phone echoes it back in
+// an 'ack' message once the cue's handler ran, and the log flips amber → green.
+// Cues fired by OTHER stations arrive via the 'cmd' subscription below and are
+// logged too, so any panel (or a monitor) sees the full picture.
+var _cidSeq = 0;
+var _seenCids = {};
+var _ackTimers = {};
+function _mkCid() { _cidSeq++; return 'c' + Date.now().toString(36) + '-' + _cidSeq; }
+
+var CMD_LABELS = {
+  'linkcard':'Link card', 'backtocall':'Back to call', 'lock':'Lock phone',
+  'unlock':'Unlock phone', 'navigate':'Home screen', 'xdmread':'Holt DM read',
+  'holt-profile-updated':'Holt profile update', 'iglive':'IG Live notification',
+  'igopen':'Open Instagram', 'igjoin':'Join IG Live', 'iglive-start':'Force Go Live',
+  'igwild':'Chat goes wild', 'ig-spotlight':'Troll comment', 'scene-reset':'Scene reset',
+  'clear-thread':'Clear thread', 'wipe':'WIPE PHONE', 'story-enter':'Story Mode ON',
+  'story-exit':'Story Mode OFF', 'char-call-end':'End character call', 'loadstate':'Load saved scene'
+};
+function _cmdLabel(d) {
+  if (d.type === 'story-cue') return CUE_LABELS[d.idx] || ('Cue ' + d.idx);
+  if (d.type === 'story-checkpoint') return 'Jump to Scene ' + d.scene;
+  if (d.type === 'setclock') return 'Clock → ' + d.time;
+  if (d.type === 'setdate') return 'Date → ' + (d.date || 'today');
+  if (d.type === 'setbattery') return 'Battery → ' + d.pct + '%' + (d.charging ? ' charging' : '');
+  if (d.type === 'setsignal') return 'Signal → ' + d.bars + ' bars';
+  if (d.type === 'call') return 'Call from ' + d.name;
+  if (d.type === 'text') return 'Text from ' + d.name;
+  if (d.type === 'open') return 'Open ' + (d.app || 'msgs') + (d.threadId ? ' → ' + d.threadId : '');
+  if (d.type === 'char-call') return 'Character call: ' + d.character;
+  return CMD_LABELS[d.type] || d.type;
+}
+
+var _lastCid = null;
+function _setLastStrip(label, time, stateClass) {
+  var lastEl = document.getElementById('cue-log-last');
+  var lastDot = document.getElementById('cue-log-last-dot');
+  if (lastEl) lastEl.textContent = time + '  ' + label;
+  if (lastDot) { lastDot.className = 'cl-dot ' + stateClass; lastDot.style.display = ''; }
+}
+
+function logCueSent(d, cid) {
+  var list = document.getElementById('cue-log-list');
+  if (!list) return;
+  var now = new Date();
+  var mm = now.getMinutes(), ss = now.getSeconds();
+  var t = now.getHours() + ':' + (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
+  var label = _cmdLabel(d);
+
+  var entry = document.createElement('div');
+  entry.className = 'cl-entry';
+  if (cid) entry.id = 'cl-' + cid;
+  var dotEl = document.createElement('span');
+  dotEl.className = 'cl-dot st-sent';
+  var timeEl = document.createElement('span');
+  timeEl.className = 'cl-time';
+  timeEl.textContent = t;
+  var labelEl = document.createElement('span');
+  labelEl.className = 'cl-label';
+  labelEl.textContent = label;
+  entry.appendChild(dotEl); entry.appendChild(timeEl); entry.appendChild(labelEl);
+  list.insertBefore(entry, list.firstChild);
+  while (list.children.length > 200) { list.removeChild(list.lastChild); }
+
+  _lastCid = cid || null;
+  _setLastStrip(label, t, 'st-sent');
+
+  if (cid) {
+    _ackTimers[cid] = setTimeout(function() { logMark(cid, 'noack'); }, 4000);
+  }
+}
+
+function logMark(cid, state) {
+  if (!cid) return;
+  if (_ackTimers[cid]) { clearTimeout(_ackTimers[cid]); delete _ackTimers[cid]; }
+  var entry = document.getElementById('cl-' + cid);
+  if (!entry) return;
+  var dotEl = entry.querySelector('.cl-dot');
+  if (!dotEl) return;
+  var cls = null;
+  if (state === 'acked') { cls = 'st-acked'; }
+  else if (state === 'failed') { cls = 'st-failed'; }
+  else if (state === 'noack') {
+    // only downgrade if still waiting — an ack may have already landed
+    if (dotEl.className.indexOf('st-sent') === -1) return;
+    cls = 'st-noack';
+    entry.title = 'No ack — old phone build, or check connection';
+  }
+  if (!cls) return;
+  dotEl.className = 'cl-dot ' + cls;
+  if (cid === _lastCid) {
+    var lastDot = document.getElementById('cue-log-last-dot');
+    if (lastDot) lastDot.className = 'cl-dot ' + cls;
+  }
+}
+
+function toggleCueLog() {
+  var el = document.getElementById('cue-log');
+  if (el) el.classList.toggle('open');
+}
+
+// See cues fired by other stations (our own echoes are deduped by _cid),
+// and acks from the phone confirming each cue's handler ran.
+if (channel) {
+  channel.subscribe('cmd', function(msg) {
+    var d = msg.data;
+    if (!d || !d.type) return;
+    if (d._cid && _seenCids[d._cid]) return;
+    logCueSent(d, d._cid || null);
+  });
+  channel.subscribe('ack', function(msg) {
+    var d = msg.data;
+    if (!d || !d.cid) return;
+    logMark(d.cid, 'acked');
+  });
+}
+
+// ── UTILITIES ──────────────────────────────────────────────────────────────────
+var toastTimer = null;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+
+// ── TAB SWITCHING ──────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panel-scenes').style.display = tab === 'scenes' ? 'block' : 'none';
+  var cp = document.getElementById('panel-controls');
+  if (tab === 'controls') { cp.classList.add('visible'); } else { cp.classList.remove('visible'); }
+  document.getElementById('tbtn-scenes').classList.toggle('active', tab === 'scenes');
+  document.getElementById('tbtn-controls').classList.toggle('active', tab === 'controls');
+}
+
+// ── PUBLISH ────────────────────────────────────────────────────────────────────
+// _cid is additive — old phone builds simply ignore unknown fields.
+function publish(data) {
+  if (MONITOR) { toast('Monitor mode — controls locked'); return; }
+  data._cid = _mkCid();
+  _seenCids[data._cid] = true;
+  logCueSent(data, data._cid);
+  if (!channel) { toast('Not connected — check Ably key'); logMark(data._cid, 'failed'); return; }
+  channel.publish('cmd', data, function(err) {
+    if (err) { toast('Failed to send'); logMark(data._cid, 'failed'); }
+  });
+}
+
+// ── CONTACTS (for cue/linkcard lookups) ────────────────────────────────────────
+var contacts = [
+  { id:'debbie', name:'Debbie PR' },
+  { id:'adam',   name:'Adam ❤️' },
+  { id:'dad',    name:'Dad' },
+  { id:'penny',  name:'Penny' },
+  { id:'frank',  name:'Frank (Booker)' },
+  { id:'nyt',    name:'Unknown' },
+  { id:'becky',  name:'becky asst' },
+  { id:'team',   name:'team' }
+];
+
+// ── DIRECTOR ACTIONS ───────────────────────────────────────────────────────────
+function fireCall(name) { publish({ type:'call', name:name }); toast('Calling ' + name); }
+function fireUnknownCall(number) { publish({ type:'call', name:number }); toast('Call from ' + number); }
+function backToCall() { publish({ type:'backtocall' }); toast('Back to active call'); }
+
+function sendSetClock() {
+  var t = document.getElementById('clock-inp').value.trim();
+  if (!t) { toast('Enter a time first'); return; }
+  publish({ type:'setclock', time:t });
+  toast('Clock set to ' + t);
+}
+
+// Status-bar controls — battery %, charging tint, and signal bars for scene beats.
+// Presets (not sliders): glanceable on set, and each tap is one ack-able cue.
+var lastBattPct = 100, lastCharging = false;
+function sendBattery(p) {
+  lastBattPct = p; lastCharging = false;
+  publish({ type:'setbattery', pct:p, charging:false });
+  toast('Battery → ' + p + '%');
+}
+function sendCharging() {
+  lastCharging = !lastCharging;
+  publish({ type:'setbattery', pct:lastBattPct, charging:lastCharging });
+  toast(lastCharging ? 'Charging on' : 'Charging off');
+}
+function sendSignal(b) {
+  publish({ type:'setsignal', bars:b });
+  toast('Signal → ' + b + ' bars');
+}
+
+// Freezes the phone's calendar widget + lock-screen date to a story date.
+// Sending an empty date reverts the phone to the real date.
+function sendSetDate() {
+  var v = document.getElementById('date-inp').value;
+  publish({ type:'setdate', date:v });
+  toast(v ? 'Date set to ' + v : 'Date reset to today');
+}
+
+var cueMsgs = {
+  'becky-article': "hey i'm getting like a thousand emails about this article... what do you want me to say?",
+  'debbie-holt':   "you talked to richard fucking holt and called him fucking stupid????",
+  'becky-iglive':  "You should check this out... it's that soldiers wife..."
+};
+
+function cue(id, text, sms) {
+  var c = null;
+  for (var i = 0; i < contacts.length; i++) { if (contacts[i].id === id) { c = contacts[i]; break; } }
+  if (!c) { toast('Contact not found: ' + id); return; }
+  publish({ type:'text', name:c.name, text:text, sms:sms === true });
+}
+
+function cueMsg(id, msgKey, sms) {
+  var text = cueMsgs[msgKey];
+  if (!text) { toast('Cue message not found: ' + msgKey); return; }
+  cue(id, text, sms);
+}
+
+function sceneReset(callback) {
+  publish({ type:'scene-reset' });
+  if (callback) setTimeout(callback, 150);
+}
+
+// Lock/Unlock are stateless explicit commands — no local toggle state to drift
+// out of sync when story cues or the laptop panel lock the phone.
+function lockPhone()   { publish({ type:'lock' });   toast('Phone locked'); }
+function unlockPhone() { publish({ type:'unlock' }); toast('Phone unlocked'); }
+
+function fireLinkCard(id, lp) {
+  var c = null;
+  for (var i = 0; i < contacts.length; i++) { if (contacts[i].id === id) { c = contacts[i]; break; } }
+  if (!c) return;
+  publish({ type:'linkcard', name:c.name, linkPreview:lp });
+}
+
+function navigate(screen) {
+  if (screen === 'home') { publish({ type:'navigate', to:'home' }); toast('Home screen'); return; }
+  publish({ type:'open', app:screen }); toast('Opening ' + screen);
+}
+
+function openThread(id) {
+  publish({ type:'open', app:'msgs', threadId:id });
+  toast('Opening thread');
+}
+
+function openXDMPanel() { publish({ type:'open', app:'xdm' }); toast('Opening Holt DM'); }
+function markXDMRead() { publish({ type:'xdmread' }); toast('Holt DM marked read'); }
+
+function fireHoltProfileDirect() {
+  var lp = { title:'Check Richard Holt\'s Twitter right now.', domain:'twitter.com', action:'holt-profile-updated' };
+  var c = null;
+  for (var i = 0; i < contacts.length; i++) { if (contacts[i].id === 'debbie') { c = contacts[i]; break; } }
+  if (c) publish({ type:'linkcard', name:c.name, linkPreview:lp });
+  publish({ type:'holt-profile-updated' });
+  toast('Holt Updated Profile');
+}
+
+function fireIGLive()   { publish({ type:'iglive' });        toast('IG Live notification sent'); }
+function fireIGOpen()   { publish({ type:'igopen' });        toast('Opening Instagram'); }
+function fireIGJoin()   { publish({ type:'igjoin' });        toast('Joining Live lobby'); }
+function fireIGGoLive() { publish({ type:'iglive-start' });  toast('Go Live fired'); }
+function fireIGSpotlight() { publish({ type:'ig-spotlight' }); toast('Troll comment fired (4s hold)'); }
+function fireIGWild()   { publish({ type:'igwild' });        toast('Chat goes wild!'); }
+
+// ── CHARACTER PHONES ───────────────────────────────────────────────────────────
+var activeCharCall = null;
+function fireCharCall(character) {
+  publish({ type:'char-call', character:character });
+  activeCharCall = character;
+  var labels = { penny:'Penny (ringing)', debbie:'Debbie (active)', holt:'Holt (active)' };
+  toast(labels[character] + ' — call screen shown');
+  document.getElementById('char-btn-end').style.display = '';
+}
+function fireCharCallEnd() {
+  publish({ type:'char-call-end' });
+  activeCharCall = null;
+  toast('Character call ended');
+  document.getElementById('char-btn-end').style.display = 'none';
+}
+
+// Arm-then-fire — window.confirm() is unreliable in a bare WKWebView wrapper
+// (silently returns false without a WKUIDelegate), and two-tap is safer on set.
+// Shared helper for any destructive cue: first tap arms for 3s, second tap fires.
+var _armState = {};
+function _disarm(key) {
+  var s = _armState[key];
+  if (!s) return;
+  clearTimeout(s.timer);
+  if (s.btn) { s.btn.textContent = s.label; s.btn.classList.remove('armed'); }
+  _armState[key] = null;
+}
+function armThenFire(key, btnEl, armedText, fn) {
+  if (_armState[key]) { _disarm(key); fn(); return; }
+  _armState[key] = {
+    btn: btnEl,
+    label: btnEl ? btnEl.textContent : '',
+    timer: setTimeout(function() { _disarm(key); }, 3000)
+  };
+  if (btnEl) { btnEl.textContent = armedText; btnEl.classList.add('armed'); }
+  toast('Tap again within 3s to confirm');
+}
+
+function fireWipe() {
+  armThenFire('wipe', document.getElementById('wipe-btn'), 'Tap again to wipe', function() {
+    publish({ type:'wipe' });
+    toast('Phone wiped to initial state');
+  });
+}
+
+// ── STORY MODE ─────────────────────────────────────────────────────────────────
+var storyActive = false;
+
+function storyEnter() {
+  storyActive = true;
+  publish({ type:'story-enter' });
+  _updateStoryUI();
+  toast('Story Mode ON — 12:06 PM');
+}
+
+// Armed: fat-fingering Exit mid-take kills story state, and it's rarely urgent.
+function storyExit() {
+  armThenFire('story-exit', document.getElementById('story-exit-btn'), 'Tap to confirm exit', function() {
+    storyActive = false;
+    publish({ type:'story-exit' });
+    _updateStoryUI();
+    toast('Story Mode OFF');
+  });
+}
+
+function storyReset() {
+  publish({ type:'story-enter' });
+  _highlightScene(2);
+  toast('Story Mode reset to 12:06 PM');
+}
+
+function storyJump(sceneNum) {
+  if (!storyActive) { storyEnter(); }
+  publish({ type:'story-checkpoint', scene:sceneNum });
+  _highlightScene(sceneNum);
+  toast('Jumped to Scene ' + sceneNum);
+}
+
+// Human-readable cue names for toasts — keyed by STORY_TIMELINE index.
+// Must stay in sync with STORY_TIMELINE in index.html.
+var CUE_LABELS = {
+  0:'Lock screen', 1:'Call from Debbie', 2:'NYT article link card', 3:'Back to call',
+  4:'Becky: thousand emails', 5:'Back to call', 6:'Open X app', 7:'Call from Dad',
+  8:'Active call — Penny', 9:'Open Holt profile', 10:'Open Holt DM',
+  11:'DM sent (fallback)', 12:'DM read receipt', 13:'Home screen',
+  14:'Call — 234-546-7965', 15:'Open Voice Memos', 16:'Open #LunaLindsey hashtag',
+  17:'Lock screen', 18:'Debbie: you called holt', 19:'Holt profile link card',
+  20:'Holt profile data update', 21:'Home screen', 22:'Becky: check this out',
+  23:'IG Live link card', 24:'Open Instagram', 25:'Force Go Live',
+  26:'Lock screen', 27:'Debbie correction link', 28:'Call from Dad'
+};
+
+function storyCue(idx) {
+  if (!storyActive) { storyEnter(); }
+  publish({ type:'story-cue', idx:idx });
+  toast('▶ ' + (CUE_LABELS[idx] || 'Cue ' + idx));
+}
+
+function storyCueCorrection() {
+  if (!storyActive) { storyEnter(); }
+  publish({ type:'story-cue', idx:27 });
+  setTimeout(function() {
+    publish({ type:'open', app:'msgs', threadId:'debbie' });
+  }, 800);
+  toast('Correction text sent');
+}
+
+function storyCueChain(firstIdx, chain) {
+  storyCue(firstIdx);
+  var cumulative = 0;
+  for (var i = 0; i < chain.length; i++) {
+    cumulative += chain[i].delay;
+    (function(cueIdx, ms) {
+      setTimeout(function() { storyCue(cueIdx); }, ms);
+    })(chain[i].idx, cumulative);
+  }
+}
+
+function _updateStoryUI() {
+  var badge = document.getElementById('story-badge');
+  var enterBtn = document.getElementById('story-enter-btn');
+  var exitBtn = document.getElementById('story-exit-btn');
+  var resetBtn = document.getElementById('story-reset-btn');
+  if (storyActive) {
+    badge.textContent = 'ACTIVE';
+    badge.className = 'story-badge active';
+    enterBtn.style.display = 'none';
+    exitBtn.style.display = '';
+    resetBtn.style.display = '';
+  } else {
+    badge.textContent = 'OFF';
+    badge.className = 'story-badge inactive';
+    enterBtn.style.display = '';
+    exitBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+  }
+}
+
+function _highlightScene(num) {
+  var cards = document.querySelectorAll('.scene-card');
+  for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('sc-current'); }
+  var target = document.getElementById('ss-' + num);
+  if (target) {
+    target.classList.add('sc-current');
+    target.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+</script>
+</body>
+</html>
